@@ -16,16 +16,13 @@ def r_xyz(p1, p0):
     r = np.linalg.norm(p1 - p0)
     return r
 
-
 def dGdr(k0, p1, p0):
     # dG / dr
     r0 = r_xyz(p1, p0)
     u = (p1 - p0) / r0
     dGdr_r = (-1/(4*PI)) * ((-1j*k0*np.exp(-1j*k0*r0))/r0 - np.exp(-1j*k0*r0)/r0**2)
-    dGdr_x = dGdr_r * u[0]
-    dGdr_y = dGdr_r * u[1]
-    dGdr_z = dGdr_r * u[2]
-    return dGdr_x, dGdr_y, dGdr_z
+    dGdr_xyz = dGdr_r*u
+    return dGdr_xyz
 
 def LocalA(dl, omega):
     # this function calculates the A vector contributed by a unit J( current )
@@ -40,17 +37,28 @@ def LocalA(dl, omega):
     return A
 
 
-def GradPhiIntegrand(dl, omega):
+def GradPhiIntegrand(dl, omega, p1, p0):
     # this funtion returns a function which used as integrand
+    # the integrand in xy plane
     halfz = dl / 2
     k0 = omega * np.sqrt(mu0 * eps0)
     Charges = -1 / (1j * omega)  # equals to -rho / eps0, right hand side of Greens function
-    def GradPhi(x, y):
-        p1 = np.array([0.0, 0.0, 0.0]) # the field point
-        p0 = np.array([x, y, halfz])
+    def GradPhi_x(x, y):
+        p_source = np.array([p0[0]+x, p0[1]+y, p0[2]]) # the field point
+        p_field = np.array([p1[0], p1[1], p1[2]]) # the field point
+        dGdr_x,_,_ = dGdr(k0, p1, p0)
+        return Charges*dGdr_x
+    def GradPhi_y(x, y):
+        p_source = np.array([p0[0]+x, p0[1]+y, p0[2]]) # the field point
+        p_field = np.array([p1[0], p1[1], p1[2]]) # the field point
+        _,dGdr_y,_ = dGdr(k0, p1, p0)
+        return Charges*dGdr_y
+    def GradPhi_z(x, y):
+        p_source = np.array([p0[0]+x, p0[1]+y, p0[2]]) # the field point
+        p_field = np.array([p1[0], p1[1], p1[2]]) # the field point
         _,_,dGdr_z = dGdr(k0, p1, p0)
-        return 2*Charges*dGdr_z
-    return GradPhi
+        return Charges*dGdr_z
+    return GradPhi_x, GradPhi_y, GradPhi_z
 
 def dblGaussianQuad(f, rangex, rangey, sample, weight):
     dl_x = rangex[1] - rangex[0]
