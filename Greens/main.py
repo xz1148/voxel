@@ -16,16 +16,13 @@ def r_xyz(p1, p0):
     r = np.linalg.norm(p1 - p0)
     return r
 
-
 def dGdr(k0, p1, p0):
     # dG / dr
     r0 = r_xyz(p1, p0)
     u = (p1 - p0) / r0
     dGdr_r = (-1/(4*PI)) * ((-1j*k0*np.exp(-1j*k0*r0))/r0 - np.exp(-1j*k0*r0)/r0**2)
-    dGdr_x = dGdr_r * u[0]
-    dGdr_y = dGdr_r * u[1]
-    dGdr_z = dGdr_r * u[2]
-    return dGdr_x, dGdr_y, dGdr_z
+    dGdr_xyz = dGdr_r*u
+    return dGdr_xyz
 
 def LocalA(dl, omega):
     # this function calculates the A vector contributed by a unit J( current )
@@ -40,17 +37,28 @@ def LocalA(dl, omega):
     return A
 
 
-def GradPhiIntegrand(dl, omega):
+def GradPhiIntegrand(omega, p1, p0):
     # this funtion returns a function which used as integrand
-    halfz = dl / 2
+    # the integrand in xy plane
     k0 = omega * np.sqrt(mu0 * eps0)
     Charges = -1 / (1j * omega)  # equals to -rho / eps0, right hand side of Greens function
-    def GradPhi(x, y):
-        p1 = np.array([0.0, 0.0, 0.0]) # the field point
-        p0 = np.array([x, y, halfz])
-        _,_,dGdr_z = dGdr(k0, p1, p0)
-        return 2*Charges*dGdr_z
-    return GradPhi
+    def GradPhi_xy_source(x, y):
+        p_source = np.array([p0[0]+x, p0[1]+y, p0[2]]) # the field point
+        p_field = np.array([p1[0], p1[1], p1[2]]) # the field point
+        dGdr_xyz = dGdr(k0, p_field, p_source)
+        gradPhi = Charges*dGdr_xyz
+        return gradPhi[0], gradPhi[1], gradPhi[2]
+#    def GradPhi_y(x, y):
+#        p_source = np.array([p0[0]+x, p0[1]+y, p0[2]]) # the field point
+#        p_field = np.array([p1[0], p1[1], p1[2]]) # the field point
+#        _,dGdr_y,_ = dGdr(k0, p1, p0)
+#        return Charges*dGdr_y
+#    def GradPhi_z(x, y):
+#        p_source = np.array([p0[0]+x, p0[1]+y, p0[2]]) # the field point
+#        p_field = np.array([p1[0], p1[1], p1[2]]) # the field point
+#        _,_,dGdr_z = dGdr(k0, p1, p0)
+#        return Charges*dGdr_z
+    return GradPhi_xy_source
 
 def dblGaussianQuad(f, rangex, rangey, sample, weight):
     dl_x = rangex[1] - rangex[0]
@@ -59,38 +67,67 @@ def dblGaussianQuad(f, rangex, rangey, sample, weight):
     weight_y = weight / 2.0 * dl_y
     sample_x = sample_points1D(-rangex[0], rangex[0], sample)
     sample_y = sample_points1D(-rangey[0], rangey[0], sample)
-    sample_xy = np.zeros((order, order), complex)
+    sample_xy_x = np.zeros((order, order), complex)
+    sample_xy_y = np.zeros((order, order), complex)
+    sample_xy_z = np.zeros((order, order), complex)
     weight_xy = np.zeros((order, order), float)
     for m in range(order):
         for n in range(order):
-            sample_xy[m,n] = f(sample_x[m], sample_y[n])
+            sample_xy_x[m,n], sample_xy_y[m,n], sample_xy_z[m,n] = f(sample_x[m], sample_y[n])
             weight_xy[m,n] = weight_x[m] * weight_y[n]
-    Integral = np.sum(sample_xy * weight_xy)
+    Integral_x = np.sum(sample_xy_x * weight_xy)
+    Integral_y = np.sum(sample_xy_y * weight_xy)
+    Integral_z = np.sum(sample_xy_z * weight_xy)
+    Integral = [Integral_x, Integral_y, Integral_z]
     return Integral
 
-def LocalE(dl, omega, sample, weight):
-    E_A = -1j*omega*LocalA(dl, omega)
-    rangex = [-dl/2, dl/2]
-    rangey = [-dl/2, dl/2]
-    E_GradPhi = -dblGaussianQuad(GradPhiIntegrand(dl,omega), rangex, rangey, sample, weight)
-    E = E_A + E_GradPhi
-    return E
+def GradPhi(omega, p1, p0, bound1, bound2, sample, weight, direction):
+    # here direction means the normal vector of plane on which the source is
+    # distributed, for instance, if the source is distributed on xy plane,
+    # direction is [0, 0, 1]
+    ux = np.array([1,0,0])
+    uy = np.array([0,1,0])
+    uz = np.array([0,0,1])
+    if np.array_equal(direction, ux):
+        M = np.matrix([[0.0,0.0,1.0],[0.0,1.0,0.0],[1.0,0.0,0.0]])
+    elif np.array_equal(direction, uy):
+        M = np.matrix([[0.0,0.0,1.0],[1.0,0.0,0.0],[0.0,1.0,0.0]])
+    elif np.array_equal(direction, uz):
+        M = np.matrix([[1.0,0.0,0.0],[0.0,0.0,1.0],[0.0,1.0,0.0]])
+
+    p1_new = np.asarray((M*np.asmatrix(p1).T).T)[0]
+    p0_new = np.asarray((M*np.asmatrix(p0).T).T)[0]
+
+    integrand = GradPhiIntegrand(omega, p1_new, p0_new)
+    gradPhi_new = dblGaussianQuad(integrand, bound1, bound2, sample, weight)
+    gradPhi = np.asarray((np.linalg.inv(M)*np.asmatrix(gradPhi_new).T).T)[0]
+    return gradPhi
+
+#def LocalE(dl, omega, sample, weight):
+#    E_A = -1j*omega*LocalA(dl, omega)
+#    rangex = [-dl/2, dl/2]
+#    rangey = [-dl/2, dl/2]
+#    E_GradPhi = -dblGaussianQuad(GradPhiIntegrand(dl,omega), rangex, rangey, sample, weight)
+#    E = E_A + E_GradPhi
+#    return E
 
 if __name__ == "__main__":
     order = 10
     sample, weight = np.polynomial.legendre.leggauss(order)
     dl = 0.1
     omega = 1e6
-    integrand = GradPhiIntegrand(dl, omega)
+    p1 = np.array([1.0, 0.0, 0.0])
+    p0 = np.array([0.0, 0.0, 0.0])
+    integrand = GradPhiIntegrand(omega, p1, p0)
     #def integrand(x,y):
     #    return 1
     x_bound = [-dl/2, dl/2]
     y_bound = [-dl/2, dl/2]
-    result1 = nquad(integrand, [x_bound, y_bound])
-    result2 = dblGaussianQuad(integrand, x_bound, y_bound, sample, weight)
-    result3 = LocalE(dl, omega, sample, weight)
-    print result3
-    print result1
+    result1 = dblGaussianQuad(integrand, x_bound, y_bound, sample, weight)
+    #result1 = nquad(integrand, [x_bound, y_bound])
+    direction = np.array([1, 0, 0])
+    result2 = GradPhi(omega, p1, p0, x_bound, y_bound, sample, weight, direction)
+    #result3 = LocalE(dl, omega, sample, weight)
     print result2
     #    def Integrand(x, y):
 #        return LocalGradPhi(dl, omega, x, y)
