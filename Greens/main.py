@@ -48,19 +48,14 @@ def GradPhiIntegrand(omega, p1, p0):
         dGdr_xyz = dGdr(k0, p_field, p_source)
         gradPhi = Charges*dGdr_xyz
         return gradPhi[0], gradPhi[1], gradPhi[2]
-#    def GradPhi_y(x, y):
-#        p_source = np.array([p0[0]+x, p0[1]+y, p0[2]]) # the field point
-#        p_field = np.array([p1[0], p1[1], p1[2]]) # the field point
-#        _,dGdr_y,_ = dGdr(k0, p1, p0)
-#        return Charges*dGdr_y
-#    def GradPhi_z(x, y):
-#        p_source = np.array([p0[0]+x, p0[1]+y, p0[2]]) # the field point
-#        p_field = np.array([p1[0], p1[1], p1[2]]) # the field point
-#        _,_,dGdr_z = dGdr(k0, p1, p0)
-#        return Charges*dGdr_z
     return GradPhi_xy_source
 
 def dblGaussianQuad(f, rangex, rangey, sample, weight):
+    # this function calculates the double integration
+    # f: function handle
+    # rangex: the rangex of x
+    # rangey: the rangey of y
+    # sample and weight: the sample and weight given by gaussian quadrature
     dl_x = rangex[1] - rangex[0]
     dl_y = rangey[1] - rangey[0]
     weight_x = weight / 2.0 * dl_x
@@ -93,16 +88,32 @@ def GradPhi(omega, p1, p0, bound1, bound2, sample, weight, direction):
     elif np.array_equal(direction, uy):
         M = np.matrix([[0.0,0.0,1.0],[1.0,0.0,0.0],[0.0,1.0,0.0]])
     elif np.array_equal(direction, uz):
-        M = np.matrix([[1.0,0.0,0.0],[0.0,0.0,1.0],[0.0,1.0,0.0]])
-
+        M = np.matrix([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]])
     p1_new = np.asarray((M*np.asmatrix(p1).T).T)[0]
     p0_new = np.asarray((M*np.asmatrix(p0).T).T)[0]
-
     integrand = GradPhiIntegrand(omega, p1_new, p0_new)
     gradPhi_new = dblGaussianQuad(integrand, bound1, bound2, sample, weight)
     gradPhi = np.asarray((np.linalg.inv(M)*np.asmatrix(gradPhi_new).T).T)[0]
     return gradPhi
 
+def GradPhiRemote(omega, p1, p0, bound1, bound2):
+    # because it calculates the remote field, the shape of charges can be
+    # neglected
+    area = (bound1[1] - bound1[0])*(bound2[1] - bound2[0])
+    charges = -1/(1j * omega) * area
+    k0 = omega * np.sqrt(eps0 * mu0)
+    gradPhi = charges * dGdr(k0, p1, p0)
+    return gradPhi
+
+def ARemote(omega, dl, p1, p0):
+    # this function calculates the remote A vector
+    # the A vector can point to x and y and z directions
+    k0 = omega*np.sqrt(mu0*eps0)
+    Volume = dl**3
+    r = r_xyz(p1, p0)
+    G = -np.exp(-1j*k0*r) / (4*PI*r)
+    A = -mu0*G*Volume
+    return A
 #def LocalE(dl, omega, sample, weight):
 #    E_A = -1j*omega*LocalA(dl, omega)
 #    rangex = [-dl/2, dl/2]
@@ -116,19 +127,15 @@ if __name__ == "__main__":
     sample, weight = np.polynomial.legendre.leggauss(order)
     dl = 0.1
     omega = 1e6
-    p1 = np.array([1.0, 0.0, 0.0])
+    p1 = np.array([0.05, 0.0, 0.0])
     p0 = np.array([0.0, 0.0, 0.0])
     integrand = GradPhiIntegrand(omega, p1, p0)
-    #def integrand(x,y):
-    #    return 1
     x_bound = [-dl/2, dl/2]
     y_bound = [-dl/2, dl/2]
-    result1 = dblGaussianQuad(integrand, x_bound, y_bound, sample, weight)
-    #result1 = nquad(integrand, [x_bound, y_bound])
     direction = np.array([1, 0, 0])
+    k0 = omega * np.sqrt(eps0 * mu0)
+
     result2 = GradPhi(omega, p1, p0, x_bound, y_bound, sample, weight, direction)
-    #result3 = LocalE(dl, omega, sample, weight)
+    result3 = GradPhiRemote(omega, p1, p0, x_bound, y_bound)
     print result2
-    #    def Integrand(x, y):
-#        return LocalGradPhi(dl, omega, x, y)
-#    print nquad(Integrand, [[-dl/2, dl/2],[-dl/2, dl/2]])
+
