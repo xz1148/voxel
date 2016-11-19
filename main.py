@@ -2,7 +2,7 @@ import Mesh.MeshGen as MeshGen
 import Mesh.View as View
 import numpy as np
 from Greens import EMConst
-
+from pymiecoated import Mie
 from Greens.Greens import *
 
 # some useful constants
@@ -93,33 +93,49 @@ if __name__ == '__main__':
     order =5
     freq = 100e6
     radii = 0.10
-    eps = 15 - 10j
-    delta_eps = (eps - 1)*eps0
+    eps_r = 2 - 10j
+    delta_eps = (eps_r - 1)*eps0
     omega = freq * 2 * np.pi
-    sigma = -np.imag(eps*eps0) * omega
+    sigma = -np.imag(eps_r*eps0) * omega
 
-    c = c0 / np.sqrt(abs(eps))
+
+    c = c0 / np.sqrt(abs(eps_r))
     l_lam = c / freq   # the wave length in object
-    dl = l_lam / 35
+    dl = l_lam / 45
+
+    def Power_abs_mie(radii, freq, eps_r):
+        l_lam_0 = c0 / freq
+        size = 2 * PI * radii / l_lam_0
+        mie = Mie(x = size, eps = np.conjugate(eps_r))
+        Qabs = mie.qabs()
+        Power = 0.5 / np.sqrt(mu0 / eps0)
+        Power_abs = Power * Qabs * PI * radii**2
+        return Power_abs
 
 
+
+    #mesh generation
     xyz_sphere, dl_new = MeshGen.SphereMeshGen(radii, dl)
     N_p = xyz_sphere.shape[0]
     dV = dl_new ** 3
     size = 10  # the dot size
     View.ViewPoints(xyz_sphere, size)
 
+    #Generate the G matrix
     GJ = GMatGen(omega, dl_new, xyz_sphere, order)
-    print GJ.shape
-    print N_p
     G_E = 1j*omega*delta_eps*GJ - np.identity(3*N_p, complex)
     Ein = -Ein_x(omega, xyz_sphere)
     E = np.linalg.solve(G_E, Ein)
     Power_abs = 0.5 * sigma * np.sum(np.abs(E)**2)*dV
+
+
+
     Volume = 4.0 / 3.0 * np.pi * radii**3
     Volume_num = dV * N_p
     Power_abs_correct = Power_abs * ((Volume / N_p) / dV)
-    print Volume
-    print Volume_num
+    #print Volume
+    #print Volume_num
     print Power_abs
     print Power_abs_correct
+    print Power_abs_mie(radii, freq, eps_r)
+    #print radii, freq, eps_r
