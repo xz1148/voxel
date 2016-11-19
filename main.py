@@ -90,17 +90,17 @@ def GMatGen(omega, dl_new, xyz_sphere, order):
 
 if __name__ == '__main__':
 
-    order = 10
+    order =5
     freq = 100e6
-    radii = 0.1
-    eps = 10 - 5j
+    radii = 0.10
+    eps = 15 - 10j
     delta_eps = (eps - 1)*eps0
     omega = freq * 2 * np.pi
-    sigma = -np.imag(eps) * omega * eps0
+    sigma = -np.imag(eps*eps0) * omega
 
     c = c0 / np.sqrt(abs(eps))
     l_lam = c / freq   # the wave length in object
-    dl = l_lam / 15
+    dl = l_lam / 35
 
 
     xyz_sphere, dl_new = MeshGen.SphereMeshGen(radii, dl)
@@ -110,14 +110,16 @@ if __name__ == '__main__':
     View.ViewPoints(xyz_sphere, size)
 
     GJ = GMatGen(omega, dl_new, xyz_sphere, order)
+    print GJ.shape
+    print N_p
     G_E = 1j*omega*delta_eps*GJ - np.identity(3*N_p, complex)
-    Ein = Ein_x(omega, xyz_sphere)
+    Ein = -Ein_x(omega, xyz_sphere)
     E = np.linalg.solve(G_E, Ein)
-    Power_abs = 0.5 * sigma * np.sum(np.abs(E)**2*dV)
+    Power_abs = 0.5 * sigma * np.sum(np.abs(E)**2)*dV
     Volume = 4.0 / 3.0 * np.pi * radii**3
-    Volume_num = N_p * dV
-
-    print Power_abs
+    Volume_num = dV * N_p
+    Power_abs_correct = Power_abs * ((Volume / N_p) / dV)
     print Volume
     print Volume_num
-
+    print Power_abs
+    print Power_abs_correct

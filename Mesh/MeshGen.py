@@ -10,7 +10,7 @@ def SphereMeshGen(radii, dl):
 
     Side = np.linspace(Side_Min, Side_Max, N_Side)
     dl_new = Side[1] - Side[0]
-    Side = Side[0:-1] + 0.5 * dl_new
+#    Side = Side[0:-1] + 0.5 * dl_new
     N_Cube = (Side.shape[0])**3
     xyz = np.zeros((N_Cube, 3))
 

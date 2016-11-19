@@ -158,7 +158,7 @@ def RemoteE(omega, p1, p0, dl, sample, weight, direction):
         print ("Distance smaller than dl to charge 2, using numerical quadrature")
         GradPhi_1 = -GradPhi(omega, p1, p0_1, bound1, bound2, sample, weight, direction)
     else:
-        GradPhi_1 = -RemoteGradPhi(omega, p1, p0_1, dl) # the negtive sign means charge is different
+        GradPhi_1 = RemoteGradPhi(omega, p1, p0_1, dl)
     E = -1j*omega*A - GradPhi_0 - GradPhi_1
     return E
 
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     sample, weight = np.polynomial.legendre.leggauss(order)
     dl = 0.1
     omega = 1e6
-    p1 = np.array([0.0, 0.0, 0.12])
+    p1 = np.array([0.3, 0.3, 0.3])
     p0 = np.array([0.0, 0.0, 0.0])
     integrand = GradPhiIntegrand(omega, p1, p0)
     x_bound = [-dl/2, dl/2]
@@ -184,9 +184,12 @@ if __name__ == "__main__":
     direction = np.array([0, 0, 1])
     k0 = omega * np.sqrt(eps0 * mu0)
 
+    result5 = RemoteGradPhi(omega, p1, p0, dl)
+    result4 = GradPhi(omega, p1, p0, x_bound, y_bound, sample, weight, direction)
+
     result3 = RemoteE(omega, p1, p0, dl, sample, weight, direction)
     result2 = LocalE(omega, dl, sample, weight)
 
-    print result2
-    print result3
+    print result5
+    print result4
 
